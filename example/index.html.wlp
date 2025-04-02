@@ -1,0 +1,5 @@
+<script setup>
+  exports.handler = () => ({ foo: 'bar' });
+</script>
+
+Hello, {{ foo }}
