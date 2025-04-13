@@ -39,7 +39,7 @@ async function render(type: 'wlp' | 'js', content: string, context?: any, cssHan
   }
 
   if (script) {
-    result = await runScript(script, context);
+    result = await runScript(script, 'handler', context);
   }
 
   if (css && cssHandler) {

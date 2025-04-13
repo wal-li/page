@@ -39,7 +39,7 @@
     "typescript": "^5.8.2"
   },
   "dependencies": {
-    "@wal-li/core": "^0.0.5",
+    "@wal-li/core": "^0.0.7",
     "chokidar": "^4.0.3",
     "liquidjs": "^10.21.0",
     "ws": "^8.18.1"
