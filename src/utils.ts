@@ -26,10 +26,11 @@ function isHtml(path: string, content: string) {
   );
 }
 
-export function injectHotReload(path: string, content: string) {
+export function injectHotReload(path: string, content: any) {
+  if (content instanceof Buffer) return content;
   if (!isHtml(path, content)) return content;
 
-  return content.replace(
+  return content?.replace(
     /<\/body>/i,
     `<script>
       const socket = new WebSocket(\`ws://\${window.location.hostname}:3001\`);
@@ -40,4 +41,22 @@ export function injectHotReload(path: string, content: string) {
       });
     </script></body>`,
   );
+}
+
+export function isBinaryFile(buffer: Buffer): boolean {
+  const len = Math.min(buffer.length, 512);
+  for (let i = 0; i < len; i++) {
+    const charCode = buffer[i];
+
+    if (charCode === 0) {
+      return true;
+    }
+
+    // Allow common control characters: \t (9), \n (10), \r (13), etc.
+    // Also allow all bytes >= 32 (printable ASCII and UTF-8 multibyte starts)
+    if (charCode < 7 || (charCode > 14 && charCode < 32)) {
+      return true;
+    }
+  }
+  return false;
 }

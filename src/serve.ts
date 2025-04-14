@@ -1,12 +1,12 @@
-import { existsSync, readFileSync } from 'fs';
-import { Container, httpLogger, Logger, Method, pathToRegexp, Server, Start } from '@wal-li/core';
-import { extname, join } from 'path';
+import { existsSync } from 'fs';
+import { Container, httpLogger, joinPath, Logger, Method, Server, Start } from '@wal-li/core';
 import process from 'process';
 import WebSocket from 'ws';
 
 import { Watcher } from './watcher';
 import { render } from './render';
-import { deepScan, injectHotReload } from './utils';
+import { injectHotReload } from './utils';
+import { bundle } from './bundle';
 
 async function serve(projectDir: string) {
   const logger = new Logger('serve');
@@ -29,28 +29,15 @@ async function serve(projectDir: string) {
   server.use(httpLogger);
 
   // project
-  let instances: Record<string, any> = {};
+  let masterContent: string = '';
 
-  const loadProject = () => {
+  const loadProject = async () => {
     logger.info(`Loading...`);
 
-    const entries = deepScan('', projectDir);
+    const lastBundle = Date.now();
+    masterContent = await bundle(projectDir);
 
-    instances = {};
-
-    for (const entry of entries) {
-      const ext = extname(entry).toLowerCase();
-      const path = entry.replace(/\.(wlp)$/gi, '').replace(/(^index|\/index)$/gi, '/');
-
-      instances[entry] ??= {};
-      instances[entry].type = ext.substring(1);
-      instances[entry].path = path;
-      instances[entry].content = readFileSync(join(projectDir, entry)).toString();
-
-      logger.info(`Added paths: ${instances[entry].path}`);
-    }
-
-    logger.success('Project was loaded!');
+    logger.success(`Project was loaded - ${Date.now() - lastBundle}ms.`);
 
     // hot reload
     wss.clients.forEach((client: any) => {
@@ -65,30 +52,14 @@ async function serve(projectDir: string) {
 
   // routing
   server.addRoute(Method.ALL, '/[[...path]]', async (input: any) => {
-    let matchedEntry;
-    let matchedParams;
-
-    for (const entry in instances) {
-      if (!instances[entry]) continue;
-
-      const ret = pathToRegexp(instances[entry].path).exec(input.params.path);
-      if (!ret) continue;
-
-      matchedEntry = entry;
-      matchedParams = ret.groups || {};
-    }
-
-    if (!matchedEntry) return;
-
-    if (!['wlp'].includes(instances[matchedEntry].type))
-      return injectHotReload(instances[matchedEntry].path, instances[matchedEntry].content);
+    const path = joinPath('/', input.params.path);
 
     return injectHotReload(
-      instances[matchedEntry].path,
-      await render(instances[matchedEntry].content, {
-        path: input.path,
+      path,
+      await render(masterContent, {
+        path: path,
         method: input.method,
-        params: matchedParams,
+        params: {},
         query: input.query,
         fields: input.fields,
         headers: input.headers,

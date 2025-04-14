@@ -3,8 +3,8 @@
     const posts = [];
     for (let i = 0; i < 10; i++) posts.push(i);
     return posts.map((id) => ({
-      path: `posts/${id}`,
-      outputPath: `posts/${id}/index.html`,
+      path: `/posts/${id}`,
+      outputPath: `/posts/${id}/index.html`,
     }));
   };
 </script>
@@ -18,7 +18,7 @@
       <title>Post</title>
     </head>
     <body>
-      Hello, {{ context.params.id }}
+      Hello, {{ context.params.id | escape }}
     </body>
   </html>
 </template>

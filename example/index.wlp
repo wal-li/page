@@ -1,5 +1,9 @@
 <script>
-  exports.init = () => [{ path: 'index.html' }];
+  exports.init = () => [{ path: '/', outputPath: '/index.html' }];
+  exports.load = () => ({
+    header: '/header',
+    footer: '/footer',
+  });
 </script>
 
 <template>
@@ -11,10 +15,19 @@
       <title>Example</title>
     </head>
     <body>
-      <a href="/about.html">About</a>
+      {{ templates.header }}
+      <img src="{{ '/logo.png' | route | escape }}" alt="" />
+      <a href="{{ '/about.html' | route | escape }}">About</a>
       <nav>
-        <a href="/posts/">Blog</a>
+        <a href="{{ '/posts/' | route | escape }}">Blog</a>
       </nav>
+      {{ templates.footer }}
     </body>
   </html>
+</template>
+
+<!-- prettier-ignore -->
+<template path="/robots.txt">
+User-agent: *
+Allow: /
 </template>

@@ -1,5 +1,5 @@
 <script>
-  exports.init = () => [{ path: 'posts/index.html' }];
+  exports.init = () => [{ path: '/posts/', outputPath: '/posts/index.html' }];
   exports.handler = () => {
     const posts = [];
     for (let i = 0; i < 10; i++) posts.push(i);
@@ -16,8 +16,8 @@
       <title>Blog</title>
     </head>
     <body>
-      {% for id in posts %}
-      <a href="/posts/{{ id }}/">{{ id }}</a>
+      {% for id in posts %} {% assign postPath = "/posts/" | append: id | append: "/" %}
+      <a href="{{ postPath | route | escape }}">{{ id }}</a>
       {% endfor %}
     </body>
   </html>

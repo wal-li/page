@@ -1,0 +1,108 @@
+<!-- file "/(layouts)/footer.wlp" -->
+<template path="/(layouts)/footer/">
+Footer
+</template>
+<!-- endfile -->
+<!-- file "/(layouts)/header.wlp" -->
+<template path="/(layouts)/header/">
+Header
+</template>
+<!-- endfile -->
+<!-- file "/about.html" -->
+<template path="/about.html">
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>About</title>
+  </head>
+  <body>
+    Hello, About.
+  </body>
+</html>
+</template>
+<!-- endfile -->
+<!-- file "/index.wlp" -->
+<script path="/">
+exports.init = () => [{ path: '/index.html' }];
+  exports.templates = {
+    header: '/(header).wlp',
+    footer: '/(footer).wlp',
+  };
+</script>
+<template path="/">
+<!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8" >
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" >
+      <title>Example</title>
+    </head>
+    <body>
+      {{ header }}
+      <img src="{{ '/logo.png' | route | escape }}" alt="" >
+      <a href="{{ '/about.html' | route | escape }}">About</a>
+      <nav>
+        <a href="{{ '/posts/' | route | escape }}">Blog</a>
+      </nav>
+      {{ footer }}
+    </body>
+  </html>
+</template>
+<!-- endfile -->
+<!-- file "/logo.png" -->
+<template path="/logo.png" format="base64">
+iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAC4jAAAuIwF4pT92AAABkklEQVQ4T63Tu4oWQRAF4M+7i7iIu3jDBttAExsVNBITDQQT8RnEQBYVU19ABE02FjExUEzEfQI1X2FAIxlkDMQLCi5e1wv10yPjsn8geJLpnuo6XXXqNEi5pPguh5TLZMrlfB+r+x39fmVdzKdcLo3hOIPLKZd3KZdP+ICXKZf7cb4nWMD2MQTvsQ57caJrm8i5h21xfnVNeoPJMQRb8LNrm7d4VM98wddhBYEfYwjGYWJYwTTOplxOo8Ni1zZHauZafK89L2J31eEvgrvYgHmcqj332FRjW2uVzzGFB/9Y8fJYUX1wEhfxEa+xHk+6tplNuXzDFZzDKkYthfgzXdvc7KcQyYfwFAdDAxzHLCPFQ5erdR1jvYY9QxE/41nXNkcHjttX1zGdia5trg9iF7B/OMYQ8Fdt51bKJcQ8VhPCfeGFIR4iL/XBiKCWH8GZun+FnUsIwkShxR8nbsZCyiVGFA9rTZ114EXYOOVyGxtrLDCqqn8Lc/XmOziM6a5tdtVbHzO64ED8rxMKkW/8Fx/8Bn0VYKCMCT0eAAAAAElFTkSuQmCC
+</template>
+<!-- endfile -->
+<!-- file "/posts/[id].wlp" -->
+<script path="/posts/[id]/">
+exports.init = () => {
+    const posts = [];
+    for (let i = 0; i < 10; i++) posts.push(i);
+    return posts.map((id) => ({
+      path: `posts/${id}`,
+      outputPath: `posts/${id}/index.html`,
+    }));
+  };
+</script>
+<template path="/posts/[id]/">
+<!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8" >
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" >
+      <title>Post</title>
+    </head>
+    <body>
+      Hello, {{ context.params.id | escape }}
+    </body>
+  </html>
+</template>
+<!-- endfile -->
+<!-- file "/posts/index.wlp" -->
+<script path="/posts/">
+exports.init = () => [{ path: 'posts/index.html' }];
+  exports.handler = () => {
+    const posts = [];
+    for (let i = 0; i < 10; i++) posts.push(i);
+    return { posts };
+  };
+</script>
+<template path="/posts/">
+<!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8" >
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" >
+      <title>Blog</title>
+    </head>
+    <body>
+      {% for id in posts %} {% assign postPath = "/posts/" | append: id | append: "/" %}
+      <a href="{{ postPath | route | escape }}">{{ id }}</a>
+      {% endfor %}
+    </body>
+  </html>
+</template>
+<!-- endfile -->

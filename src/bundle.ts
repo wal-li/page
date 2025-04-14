@@ -1,23 +1,17 @@
-import { Logger, pathToRegexp, runScript } from '@wal-li/core';
+import { joinPath, Logger, pathToRegexp, runScript } from '@wal-li/core';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { dirname, extname, join } from 'path';
-import { deepScan } from './utils';
+import { deepScan, isBinaryFile } from './utils';
 import { parse, render } from './render';
 
-async function bundle(projectDir: string, outputFile: string) {
+async function bundle(projectDir: string) {
   const logger = new Logger('bundle');
 
   // prepare output
   if (!existsSync(projectDir)) {
     logger.error(`Invalid project directory.`);
-    return;
+    return '';
   }
-
-  if (existsSync(outputFile)) {
-    rmSync(outputFile, { recursive: true, force: true });
-  }
-
-  mkdirSync(dirname(outputFile), { recursive: true });
 
   // scan
   let masterContent: string = '';
@@ -26,24 +20,34 @@ async function bundle(projectDir: string, outputFile: string) {
   for (const entry of entries) {
     const ext = extname(entry).toLowerCase();
     const type = ext.substring(1);
-    const content = readFileSync(join(projectDir, entry)).toString().trim();
+    const routePath = joinPath('/', entry);
+
+    let content: any = readFileSync(join(projectDir, entry));
 
     if (!['wlp'].includes(type)) {
-      masterContent += `<!-- file "${entry}" -->\n<template path="${entry}">\n${content}\n</template>\n<!-- endfile -->\n`;
-      logger.success(`Copy: ${entry}`);
+      if (isBinaryFile(content)) {
+        masterContent += `<!-- file "${routePath}" -->\n<template path="${routePath}" format="base64">\n${content.toString(
+          'base64',
+        )}\n</template>\n<!-- endfile -->\n`;
+      } else {
+        content = content.toString().trim();
+        masterContent += `<!-- file "${routePath}" -->\n<template path="${routePath}">\n${content}\n</template>\n<!-- endfile -->\n`;
+      }
+
+      logger.success(`Copy: ${routePath}`);
       continue;
     }
 
-    const path = entry.replace(/\.(wlp)$/gi, '').replace(/(^index|\/index)$/gi, '/');
+    const path = routePath.replace(/\.(wlp)$/gi, '').replace(/(^index|\/index)$/gi, '/');
     const routes = parse(content);
 
     if (!Object.keys(routes).length) continue;
 
-    masterContent += `<!-- file "${entry}" -->\n`;
+    masterContent += `<!-- file "${routePath}" -->\n`;
 
     for (const routePath in routes) {
       const route = routes[routePath];
-      const nextRoutePath = join(path, routePath);
+      const nextRoutePath = joinPath(path, routePath);
 
       if (route.script) masterContent += `<script path="${nextRoutePath}">\n${route.script}\n</script>\n`;
       if (route.template) masterContent += `<template path="${nextRoutePath}">\n${route.template}\n</template>\n`;
@@ -55,7 +59,7 @@ async function bundle(projectDir: string, outputFile: string) {
   }
 
   // write output
-  writeFileSync(outputFile, masterContent);
+  return masterContent;
 }
 
 export { bundle };
