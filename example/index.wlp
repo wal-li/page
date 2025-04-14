@@ -1,0 +1,20 @@
+<script>
+  exports.init = () => [{ path: 'index.html' }];
+</script>
+
+<template>
+  <!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Example</title>
+    </head>
+    <body>
+      <a href="/about.html">About</a>
+      <nav>
+        <a href="/posts/">Blog</a>
+      </nav>
+    </body>
+  </html>
+</template>
