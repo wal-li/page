@@ -4,9 +4,8 @@ import process from 'process';
 import WebSocket from 'ws';
 
 import { Watcher } from './watcher';
-import { render } from './render';
-import { injectHotReload } from './utils';
 import { bundle } from './bundle';
+import { processor } from './processor';
 
 async function serve(projectDir: string) {
   const logger = new Logger('serve');
@@ -54,17 +53,14 @@ async function serve(projectDir: string) {
   server.addRoute(Method.ALL, '/[[...path]]', async (input: any) => {
     const path = joinPath('/', input.params.path);
 
-    return injectHotReload(
-      path,
-      await render(masterContent, {
-        path: path,
-        method: input.method,
-        params: {},
-        query: input.query,
-        fields: input.fields,
-        headers: input.headers,
-      }),
-    );
+    return processor(masterContent, {
+      path: path,
+      method: input.method,
+      params: {},
+      query: input.query,
+      fields: input.fields,
+      headers: input.headers,
+    });
   });
 
   // start

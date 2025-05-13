@@ -1,65 +1,82 @@
-import { joinPath, Logger, pathToRegexp, runScript } from '@wal-li/core';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { dirname, extname, join } from 'path';
+import { joinPath, Logger } from '@wal-li/core';
+import { existsSync, readFileSync } from 'fs';
+import { extname, join } from 'path';
 import { deepScan, isBinaryFile } from './utils';
-import { parse, render } from './render';
 
-async function bundle(projectDir: string) {
+function formatContent(routePath: string, content: string, minify: boolean): string {
+  return `${minify ? '' : `<!-- file "${routePath}" -->\n`}${content}${minify ? '' : '\n\n'}`;
+}
+
+function formatTemplate(routePath: string, name: string, content: string, minify: boolean): string {
+  return `${minify ? '' : `<!-- file "${routePath}" -->\n`}<template name="${name}">${minify ? '' : '\n'}${content}${
+    minify ? '' : '\n'
+  }</template>${minify ? '' : '\n\n'}`;
+}
+
+function formatRoute(routePath: string, path: string, content: string, minify: boolean): string {
+  return `${minify ? '' : `<!-- file "${routePath}" -->\n`}<route path="${path}">${minify ? '' : '\n'}${content}${
+    minify ? '' : '\n'
+  }</route>${minify ? '' : '\n\n'}`;
+}
+
+function formatRaw(routePath: string, path: string, content: string, isBinary: boolean, minify: boolean): string {
+  return `${minify ? '' : `<!-- file "${routePath}" -->\n`}<route path="${path}">${minify ? '' : '\n'}<view${
+    isBinary ? ' format="base64"' : ''
+  }>${minify ? '' : '\n'}${content}${minify ? '' : '\n'}</view>${minify ? '' : '\n'}</route>${minify ? '' : '\n\n'}`;
+}
+
+export async function bundle(projectDir: string, minify: boolean = false): Promise<string> {
   const logger = new Logger('bundle');
 
-  // prepare output
   if (!existsSync(projectDir)) {
     logger.error(`Invalid project directory.`);
     return '';
   }
 
-  // scan
-  let masterContent: string = '';
-
+  let masterContent = '';
   const entries = deepScan('', projectDir);
+
   for (const entry of entries) {
     const ext = extname(entry).toLowerCase();
     const type = ext.substring(1);
     const routePath = joinPath('/', entry);
+    const filePath = join(projectDir, entry);
 
-    let content: any = readFileSync(join(projectDir, entry));
-
-    if (!['wlp'].includes(type)) {
-      if (isBinaryFile(content)) {
-        masterContent += `<!-- file "${routePath}" -->\n<template path="${routePath}" format="base64">\n${content.toString(
-          'base64',
-        )}\n</template>\n<!-- endfile -->\n`;
-      } else {
-        content = content.toString().trim();
-        masterContent += `<!-- file "${routePath}" -->\n<template path="${routePath}">\n${content}\n</template>\n<!-- endfile -->\n`;
-      }
-
-      logger.success(`Copy: ${routePath}`);
-      continue;
-    }
-
+    const content = readFileSync(filePath);
     const path = routePath.replace(/\.(wlp)$/gi, '').replace(/(^index|\/index)$/gi, '/');
-    const routes = parse(content);
 
-    if (!Object.keys(routes).length) continue;
+    if (type === 'wlp') {
+      const textContent = content.toString().trim();
 
-    masterContent += `<!-- file "${routePath}" -->\n`;
-
-    for (const routePath in routes) {
-      const route = routes[routePath];
-      const nextRoutePath = joinPath(path, routePath);
-
-      if (route.script) masterContent += `<script path="${nextRoutePath}">\n${route.script}\n</script>\n`;
-      if (route.template) masterContent += `<template path="${nextRoutePath}">\n${route.template}\n</template>\n`;
-
-      logger.success(`Bundle: ${nextRoutePath}`);
+      if (path.startsWith('/(templates)/')) {
+        // template
+        const name = path.replace('/(templates)/', '');
+        masterContent += formatTemplate(routePath, name, textContent, minify);
+        logger.success(`Copy: ${routePath} -> ${name}`);
+        continue;
+      } else if (
+        textContent.includes('<route') ||
+        textContent.includes('<alias') ||
+        textContent.includes('<template')
+      ) {
+        // fully
+        masterContent += formatContent(routePath, textContent, minify);
+        logger.success(`Copy: ${routePath}`);
+        continue;
+      } else if (textContent.includes('<script') || textContent.includes('<view')) {
+        // partially
+        masterContent += formatRoute(routePath, path, textContent, minify);
+        logger.success(`Copy: ${routePath} -> ${path}`);
+        continue;
+      }
     }
 
-    masterContent += `<!-- endfile -->\n`;
+    const isBinary = isBinaryFile(content);
+    const formattedContent = isBinary ? content.toString('base64') : content.toString().trim();
+
+    masterContent += formatRaw(routePath, path, formattedContent, isBinary, minify);
+    logger.success(`Copy: ${routePath} -> ${path}`);
   }
 
-  // write output
   return masterContent;
 }
-
-export { bundle };

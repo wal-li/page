@@ -1,6 +1,6 @@
 {
   "name": "@wal-li/page",
-  "version": "0.0.2",
+  "version": "1.0.0",
   "main": "dist/wlp.js",
   "types": "dist/wlp.d.ts",
   "type": "commonjs",
@@ -11,7 +11,8 @@
     "/dist"
   ],
   "scripts": {
-    "dev": "tsc -w & NODE_ENV=development nodemon dist/wlp.js -- ./example",
+    "example:dev": "tsc -w & NODE_ENV=development nodemon dist/wlp.js -- serve ./example",
+    "example:bundle": "rm -rf output && mkdir output && tsc && node dist/wlp.js bundle ./example ./output/index.wlp",
     "build": "tsc",
     "test": "jest --runInBand --detectOpenHandles",
     "coverage": "jest --coverage --runInBand"
@@ -42,6 +43,7 @@
     "@wal-li/core": "^0.0.7",
     "chokidar": "^4.0.3",
     "commander": "^13.1.0",
+    "isolated-vm": "^5.0.4",
     "liquidjs": "^10.21.0",
     "node-html-parser": "^7.0.1",
     "ws": "^8.18.1"

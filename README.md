@@ -11,10 +11,6 @@ wlp serve <project-dir>
 ```
 
 ```bash
-wlp build <project-dir> <output-dir>
-```
-
-```bash
 wlp bundle <project-dir> <output-file>
 ```
 

@@ -1,102 +1,212 @@
-import { isObject, merge, pathToRegexp, runScript } from '@wal-li/core';
 import { parse as parseHTML } from 'node-html-parser';
-import { Liquid } from 'liquidjs';
+import { Context, ExternalCopy, Isolate, Reference } from 'isolated-vm';
+import { renderAST, tokenize, tokensToAST } from './template';
+import { merge } from '@wal-li/core';
 
-// template engine
-const engine = new Liquid({
-  root: [],
-  partials: [],
-  templates: {},
-});
+type RequestOptions = {
+  method?: 'get' | 'post' | 'put' | 'patch' | 'delete';
+  headers?: Record<string, string>;
+  params?: Record<string, any>;
+  responseType?: 'text' | 'json';
+  body?: any;
+};
 
-engine.registerFilter('route', (path) => {
-  return path;
-});
+type RenderOptions = {
+  timeout: number;
+  lookup?: Function;
+};
 
-function parse(content: string) {
-  const root = parseHTML(content);
-  const routes: Record<string, any> = {};
+const BUILTIN_SYNC_FUNCTIONS = {
+  dump(data: any, formatted = false) {
+    return formatted ? JSON.stringify(data, null, 2) : JSON.stringify(data);
+  },
+};
 
-  // parse content
-  for (const node of root.childNodes as any) {
-    if (!['SCRIPT', 'TEMPLATE'].includes(node.tagName)) continue;
+const BUILTIN_ASYNC_FUNCTIONS = {
+  async request(url: string, options: RequestOptions = {}) {
+    const u = new URL(url);
 
-    const path = (node.getAttribute('path') || '/').replace(/(^index|\/index)$/gi, '/');
-    routes[path] ??= {};
-    routes[path][node.tagName.toLowerCase()] = node.innerHTML.trim();
-
-    if (node.tagName === 'TEMPLATE') routes[path].format = (node.getAttribute('format') || 'text').toLowerCase();
-  }
-
-  return routes;
-}
-
-function matchRoute(routes: Record<string, any>, path: string) {
-  const routePaths = Object.keys(routes);
-
-  for (const routePath of routePaths) {
-    const nextParams = pathToRegexp(routePath).exec(path);
-    if (nextParams) {
-      return [routes[routePath], nextParams.groups || {}];
+    if (options.params) {
+      for (const [key, value] of Object.entries(options.params)) {
+        if (value === null || value === undefined) {
+          u.searchParams.delete(key); // Remove param if value is null/undefined
+        } else {
+          u.searchParams.set(key, value); // Set/update param
+        }
+      }
     }
-  }
 
-  return [];
-}
+    const res = await fetch(u, {
+      method: options.method || 'get',
+      headers: merge({}, options.responseType === 'json' ? { 'Content-Type': 'application/json' } : {}),
+      body: options.body
+        ? options.responseType === 'json'
+          ? JSON.stringify(options.body)
+          : options.body.toString()
+        : undefined,
+    });
 
-async function routeRender(route: any, context: any) {
-  // run result first
-  let result: any;
+    const headers = Object.fromEntries(res.headers.entries());
 
-  if (route.script) {
-    result = await runScript(route.script, 'handler', context);
-  }
+    return options.responseType === 'json'
+      ? await res.json()
+      : options.responseType === 'text'
+      ? await res.text()
+      : {
+          status: res.status,
+          statusText: res.statusText,
+          headers,
+          bodyUsed: false,
+          ok: res.ok,
+          redirected: res.redirected,
+          type: res.type,
+          url: res.url,
+        };
+  },
+};
 
-  return await engine.parseAndRender(route.template, {
-    ...(isObject(context) && Object.keys(context).length ? context : {}),
-    ...(isObject(result) && Object.keys(result).length ? result : {}),
-    context,
-    result,
+// @todo: try promise in TransferOptions
+async function runAsync(context: Context, code: string, timeout: number): Promise<any> {
+  const jail = context.global;
+
+  // Generate unique response handler IDs
+  const id = jail.getSync('_async_id') ?? 0;
+  jail.setSync('_async_id', id + 1);
+
+  const resolveMethod = `_resolve_${id}`;
+  const rejectMethod = `_reject_${id}`;
+  const wrappedCode = `(async () => { ${code} })().then(${resolveMethod}).catch(${rejectMethod});`;
+
+  return new Promise((resolve, reject) => {
+    jail.setSync(resolveMethod, resolve);
+    jail.setSync(rejectMethod, reject);
+
+    try {
+      context.evalSync(wrappedCode, { timeout });
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 
-async function render(content: string, context: any = {}) {
-  const routes: Record<string, any> = parse(content);
-
-  // handle route when meet many routes
-  const path = context.path || '/';
-  const [mainRoute, mainParams] = matchRoute(routes, path);
-  context.params = merge({}, context.params || {}, mainParams || {});
-
-  if (!mainRoute || !mainRoute.template) return;
-
-  if (['base64', 'hex'].includes(mainRoute.format)) {
-    return Buffer.from(mainRoute.template, mainRoute.format);
+function parseLocationFromMessage(msg: string): { line: number; column: number } | null {
+  const match = msg.match(/\[(?:<isolated-vm>)?:(\d+):(\d+)\]/);
+  if (match) {
+    return {
+      line: parseInt(match[1], 10),
+      column: parseInt(match[2], 10),
+    };
   }
-
-  // do render
-  if (mainRoute.script) {
-    // then load other parts
-    const loader: any = await runScript(mainRoute.script, 'load', context);
-    if (loader)
-      for (const name in loader) {
-        const loadPath = loader[name];
-        const [loadRoute, loadParams] = matchRoute(routes, loadPath);
-        if (!loadRoute) continue;
-
-        const loadContext = structuredClone(context);
-
-        loadContext.path = loadPath;
-        loadContext.params = merge({}, context.params || {}, loadParams || {});
-
-        const loadContent = await routeRender(loadRoute, loadContext);
-
-        context.templates ??= {};
-        context.templates[name] = loadContent;
-      }
-  }
-
-  return await routeRender(mainRoute, context);
+  return null;
 }
 
-export { parse, render };
+function highlightCodeAtLocation(code: string, line: number, column: number): string {
+  const lines = code.split('\n');
+  const targetLine = lines[line - 1] ?? '';
+  const pointer = ' '.repeat(column - 1) + '^';
+  return `Error at line ${line}, column ${column}:\n${targetLine}\n${pointer}`;
+}
+
+function throwWithCustomStack(message: string, filename: string, line: number, column: number, code?: string): never {
+  const err = new Error(message);
+  err.stack = `${err.name}: ${err.message}\n    at ${filename}:${line}:${column}`;
+  if (code) {
+    err.stack += `\n\n` + highlightCodeAtLocation(code, line, column);
+  }
+  throw err;
+}
+
+export async function render(
+  script: string = '',
+  view: string = '',
+  context: Record<string, any> = {},
+  options: RenderOptions = { timeout: 10000 },
+) {
+  const vm = new Isolate({ memoryLimit: 8 });
+  const vmContext = vm.createContextSync();
+  const jail = vmContext.global;
+
+  try {
+    // Initialize VM context
+    jail.setSync('exports', new ExternalCopy({}).copyInto());
+    let initScript = '';
+
+    // sync fn
+    Object.entries(BUILTIN_SYNC_FUNCTIONS).forEach(([name, func]) => {
+      jail.setSync(name, func);
+    });
+
+    // async fn
+    Object.entries(BUILTIN_ASYNC_FUNCTIONS).forEach(([name, func]) => {
+      jail.setSync(`_builtin_${name}`, new Reference(func));
+      initScript += `const ${name} = (...args) => _builtin_${name}.apply(undefined, args, { arguments: { copy: true }, result: { promise: true, copy: true } });`;
+    });
+    jail.setSync('context', new ExternalCopy(context).copyInto());
+
+    // init script
+    vmContext.evalSync(initScript);
+
+    // Execute script if present
+    if (script) {
+      try {
+        vmContext.evalSync(script);
+      } catch (e: any) {
+        const loc = parseLocationFromMessage(e.message);
+        if (loc) {
+          throwWithCustomStack(e.message, '<script>', loc.line, loc.column, script);
+        } else {
+          throw e; // fallback
+        }
+      }
+    }
+
+    // Execute handler function
+    const result = await runAsync(
+      vmContext,
+      `return exports.handler ? await exports.handler(${JSON.stringify(context)}) : undefined;`,
+      options.timeout,
+    );
+
+    if (!view) {
+      return { script: result };
+    }
+
+    // Render view content
+    jail.setSync('result', new ExternalCopy(result).copyInto());
+    const tokens = tokenize(view);
+    const tree = tokensToAST(tokens);
+    const renderedContent = renderAST(tree, (expr: string, ctx: any) => {
+      const localCtx = Object.entries(ctx)
+        .map(([key, value]) => `const ${key} = ${JSON.stringify(value)};`)
+        .join('\n');
+      return vmContext.evalSync(`(() => { ${localCtx} return ${expr}; })()`, { copy: true });
+    });
+
+    // exports
+    const transferableExports = vmContext.evalSync(`(() => ({ layout: exports.layout }))()`, { copy: true });
+
+    return { ...transferableExports, script: result, view: renderedContent };
+  } catch (err) {
+    throw err;
+  } finally {
+    vm.dispose();
+  }
+}
+
+export async function renderContent(
+  content: string = '',
+  context: Record<string, any> = {},
+  options: RenderOptions = { timeout: 10000 },
+) {
+  const root = parseHTML(content);
+  const sources: Record<string, string> = {};
+
+  // Extract script and view sources
+  for (const node of root.childNodes as any) {
+    if (['SCRIPT', 'VIEW'].includes(node.tagName)) {
+      sources[node.tagName.toLowerCase()] = node.innerHTML.trim();
+    }
+  }
+
+  return render(sources.script, sources.view, context, options);
+}

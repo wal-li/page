@@ -1,0 +1,5 @@
+<script>
+  exports.layout = 'base';
+</script>
+
+<view> <%= context.params.lang.toUpperCase() %></view>

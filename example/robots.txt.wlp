@@ -1,0 +1,5 @@
+<!-- prettier-ignore -->
+<view>
+User-agent: *
+Allow: /
+</view>
