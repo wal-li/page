@@ -54,7 +54,7 @@ function getRouteScore(path: string = '/'): number {
   return score;
 }
 
-export async function router(routes: Route[], context: Record<string, any>, lookupTemplate?: Function) {
+export async function navigate(routes: Route[], context: Record<string, any>, lookupTemplate?: Function) {
   const isDev = process.env.NODE_ENV === 'development';
   const path = context.path || '/';
 

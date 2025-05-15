@@ -1,7 +1,7 @@
 import { parse as parseHTML } from 'node-html-parser';
-import { Block, Route, router } from './router';
+import { Block, Route, navigate } from './navigate';
 
-export async function processor(content: string = '', context: Record<string, any> = {}) {
+export async function execute(content: string = '', context: Record<string, any> = {}) {
   const root = parseHTML(content);
 
   const routes: Route[] = [];
@@ -57,7 +57,7 @@ export async function processor(content: string = '', context: Record<string, an
     }
   }
 
-  return await router(routes, context, (name: string) => {
+  return await navigate(routes, context, (name: string) => {
     return templateMap.get(name);
   });
 }

@@ -1,12 +1,12 @@
-import { processor } from '../src/processor';
-import * as routerModule from '../src/router';
+import { execute } from '../src/execute';
+import * as navigateModule from '../src/navigate';
 
-jest.mock('../src/router', () => ({
-  router: jest.fn(),
+jest.mock('../src/navigate', () => ({
+  navigate: jest.fn(),
 }));
 
-describe('processor', () => {
-  it('should parse ROUTE and TEMPLATE nodes and call router', async () => {
+describe('execute', () => {
+  it('should parse ROUTE and TEMPLATE nodes and call navigate', async () => {
     const html = `
       <template name="main-layout">
         <script>layout script</script>
@@ -20,13 +20,13 @@ describe('processor', () => {
     `;
 
     const mockResponse = { html: '<wrapped>page</wrapped>' };
-    const routerMock = routerModule.router as jest.Mock;
-    routerMock.mockResolvedValue(mockResponse);
+    const navigateMock = navigateModule.navigate as jest.Mock;
+    navigateMock.mockResolvedValue(mockResponse);
 
-    const result = await processor(html, { path: '/home' });
+    const result = await execute(html, { path: '/home' });
 
-    expect(routerMock).toHaveBeenCalledTimes(1);
-    const [routes, context, lookupTemplate] = routerMock.mock.calls[0];
+    expect(navigateMock).toHaveBeenCalledTimes(1);
+    const [routes, context, lookupTemplate] = navigateMock.mock.calls[0];
 
     // Check routes
     expect(routes).toEqual([

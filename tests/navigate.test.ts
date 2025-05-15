@@ -1,4 +1,4 @@
-import { router } from '../src/router';
+import { navigate } from '../src/navigate';
 import { render } from '../src/render';
 import { Response } from '@wal-li/core';
 
@@ -14,7 +14,7 @@ function shuffle<T>(array: T[]): T[] {
     .map((a) => a.value);
 }
 
-describe('router', () => {
+describe('navigate', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -23,7 +23,7 @@ describe('router', () => {
     const routes = [{ path: '/test' }];
     const context = { path: '/no-match' };
 
-    const result = await router(routes, context);
+    const result = await navigate(routes, context);
     expect(result).toBeUndefined();
   });
 
@@ -42,7 +42,7 @@ describe('router', () => {
       view: '<html>Rendered</html>',
     });
 
-    const result = await router(routes, context);
+    const result = await navigate(routes, context);
     expect(result).toBeInstanceOf(Response);
   });
 
@@ -56,7 +56,7 @@ describe('router', () => {
     ];
     const context = { path: '/raw' };
 
-    const result = await router(routes, context);
+    const result = await navigate(routes, context);
     expect(result).toBeInstanceOf(Buffer);
     expect(result?.toString()).toBe('Hello, world!');
   });
@@ -77,7 +77,7 @@ describe('router', () => {
     });
 
     const context = { path: '/alias' };
-    const result = await router(routes, context);
+    const result = await navigate(routes, context);
 
     expect(result).toBeInstanceOf(Response);
   });
@@ -93,7 +93,7 @@ describe('router', () => {
     const context = { path: '/empty' };
 
     mockRender.mockResolvedValue({}); // simulate empty render
-    const result = await router(routes, context);
+    const result = await navigate(routes, context);
 
     expect(result).toBeUndefined();
   });
@@ -110,7 +110,7 @@ describe('router', () => {
     const expectedOutput = { script: { status: 200, headers: {} } };
     mockRender.mockResolvedValue(expectedOutput);
 
-    const result = await router(routes, context);
+    const result = await navigate(routes, context);
     expect(result).toEqual(expectedOutput);
   });
 
@@ -129,7 +129,7 @@ describe('router', () => {
       view: '<html>Hello John</html>',
     });
 
-    const result = await router(routes, context);
+    const result = await navigate(routes, context);
 
     expect(result).toBeInstanceOf(Response);
     expect(mockRender).toHaveBeenCalledWith(
@@ -157,7 +157,7 @@ describe('router', () => {
       view: '<html>Alice Profile</html>',
     });
 
-    const result = await router(routes, context);
+    const result = await navigate(routes, context);
 
     expect(result).toBeInstanceOf(Response);
     expect(mockRender).toHaveBeenCalledWith(
@@ -207,7 +207,7 @@ describe('router', () => {
         view: expectedContent,
       });
 
-      const result = await router(shuffledRoutes, context);
+      const result = await navigate(shuffledRoutes, context);
 
       expect(result).toBeInstanceOf(Response);
       expect(mockRender).toHaveBeenCalledWith(
@@ -250,7 +250,7 @@ describe('router', () => {
       }
     });
 
-    const result = await router(routes, context, lookupTemplate);
+    const result = await navigate(routes, context, lookupTemplate);
 
     expect(mockRender).toHaveBeenCalledTimes(2);
 

@@ -5,7 +5,7 @@ import WebSocket from 'ws';
 
 import { Watcher } from './watcher';
 import { bundle } from './bundle';
-import { processor } from './processor';
+import { execute } from './execute';
 
 async function serve(projectDir: string) {
   const logger = new Logger('serve');
@@ -53,7 +53,7 @@ async function serve(projectDir: string) {
   server.addRoute(Method.ALL, '/[[...path]]', async (input: any) => {
     const path = joinPath('/', input.params.path);
 
-    return processor(masterContent, {
+    return execute(masterContent, {
       path: path,
       method: input.method,
       params: {},

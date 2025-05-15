@@ -14,10 +14,28 @@ wlp serve <project-dir>
 wlp bundle <project-dir> <output-file>
 ```
 
-## Includes
+## Concept
 
-- `@wal-li/core`'s `runScript`.
-- LiquidJS.
+**Serve**
+
+```mermaid
+flowchart LR
+  S[Server]-->E[Execute]
+  E-->N[Navigate]
+  N-->R[Render]
+  R-->P[Response]
+```
+
+**Bundle**
+
+```mermaid
+flowchart LR
+  B[Bundle]-->F[File]
+```
+
+## Author
+
+HaoVA <hi@haova.me> (https://www.haova.me)
 
 ## License
 
