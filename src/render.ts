@@ -1,15 +1,7 @@
 import { parse as parseHTML } from 'node-html-parser';
 import { Context, ExternalCopy, Isolate, Reference } from 'isolated-vm';
 import { renderAST, tokenize, tokensToAST } from './template';
-import { merge } from '@wal-li/core';
-
-type RequestOptions = {
-  method?: 'get' | 'post' | 'put' | 'patch' | 'delete';
-  headers?: Record<string, string>;
-  params?: Record<string, any>;
-  responseType?: 'text' | 'json';
-  body?: any;
-};
+import { request } from './utils';
 
 type RenderOptions = {
   timeout: number;
@@ -23,48 +15,7 @@ const BUILTIN_SYNC_FUNCTIONS = {
 };
 
 const BUILTIN_ASYNC_FUNCTIONS = {
-  async request(url: string, options: RequestOptions = {}) {
-    const u = new URL(url);
-
-    if (options.params) {
-      for (const [key, value] of Object.entries(options.params)) {
-        if (value === null || value === undefined) {
-          u.searchParams.delete(key); // Remove param if value is null/undefined
-        } else {
-          u.searchParams.set(key, value); // Set/update param
-        }
-      }
-    }
-
-    const res = await fetch(u, {
-      method: options.method || 'get',
-      headers: merge({}, options.responseType === 'json' ? { 'Content-Type': 'application/json' } : {}),
-      body: options.body
-        ? options.responseType === 'json'
-          ? JSON.stringify(options.body)
-          : options.body.toString()
-        : undefined,
-    });
-
-    const headers = Object.fromEntries(res.headers.entries());
-
-    return {
-      status: res.status,
-      statusText: res.statusText,
-      headers,
-      bodyUsed: false,
-      body:
-        options.responseType === 'json'
-          ? await res.json()
-          : options.responseType === 'text'
-          ? await res.text()
-          : undefined,
-      ok: res.ok,
-      redirected: res.redirected,
-      type: res.type,
-      url: res.url,
-    };
-  },
+  request,
 };
 
 // @todo: try promise in TransferOptions

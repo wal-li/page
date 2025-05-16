@@ -294,7 +294,7 @@ describe('render test', () => {
     const content = `
       <script>
         exports.handler = async () => {
-          const res = await request('https://www.haova.me');
+          const res = await request('https://www.haova.me', { responseType: 'text' });
           return {
             status: res.status
           };

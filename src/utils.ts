@@ -1,3 +1,4 @@
+import { merge } from '@wal-li/core';
 import { Dirent, readdirSync } from 'fs';
 import { join } from 'path';
 
@@ -84,4 +85,67 @@ export function isBinaryFile(buffer: Buffer): boolean {
     }
   }
   return false;
+}
+
+type RequestOptions = {
+  method?: 'get' | 'post' | 'put' | 'patch' | 'delete';
+  headers?: Record<string, string>;
+  params?: Record<string, any>;
+  responseType?: 'json' | 'text' | 'buffer';
+  body?: any;
+};
+
+export async function request(url: string, options: RequestOptions = {}) {
+  const u = new URL(url);
+
+  if (options.params) {
+    for (const [key, value] of Object.entries(options.params)) {
+      if (value === null || value === undefined) {
+        u.searchParams.delete(key); // Remove param if value is null/undefined
+      } else {
+        u.searchParams.set(key, value); // Set/update param
+      }
+    }
+  }
+
+  options.responseType ??= 'json';
+
+  let reqBody, contentType;
+
+  if (options.body && typeof options.body === 'object') {
+    reqBody = JSON.stringify(options.body);
+    contentType = 'application/json';
+  } else if (options.body && typeof options.body === 'string') {
+    reqBody = options.body;
+    contentType = 'application/x-www-form-urlencoded';
+  }
+
+  const res = await fetch(u, {
+    method: options.method || 'get',
+    headers: merge(
+      {},
+      options.responseType === 'json' ? { Accept: 'application/json' } : {},
+      contentType ? { 'Content-Type': contentType } : {},
+    ),
+    ...(reqBody ? { body: reqBody } : {}),
+  });
+
+  const headers = Object.fromEntries(res.headers.entries());
+
+  return {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+    bodyUsed: false,
+    body:
+      options.responseType === 'json'
+        ? await res.json()
+        : options.responseType === 'text'
+        ? await res.text()
+        : await res.arrayBuffer(),
+    ok: res.ok,
+    redirected: res.redirected,
+    type: res.type,
+    url: res.url,
+  };
 }
