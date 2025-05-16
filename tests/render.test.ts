@@ -289,4 +289,20 @@ describe('render test', () => {
     const { view } = await renderContent(content, context);
     expect(view).toBe('Hello World');
   });
+
+  it('should request', async () => {
+    const content = `
+      <script>
+        exports.handler = async () => {
+          const res = await request('https://www.haova.me');
+          return {
+            status: res.status
+          };
+        }
+      </script>
+    `;
+
+    const { script } = await renderContent(content);
+    expect(script).toEqual({ status: 200 });
+  });
 });
