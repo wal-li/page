@@ -1,52 +1,61 @@
+import { Response } from '@wal-li/core';
 import { execute } from '../src/execute';
 import * as navigateModule from '../src/navigate';
 
-jest.mock('../src/navigate', () => ({
-  navigate: jest.fn(),
-}));
+// jest.mock('../src/navigate', () => ({
+//   navigate: jest.fn(),
+// }));
 
 describe('execute', () => {
-  it('should parse ROUTE and TEMPLATE nodes and call navigate', async () => {
-    const html = `
+  it('should process empty', async () => {
+    const res = await execute();
+    expect(res).toEqual(new Response(404, 'Not Found', { 'Content-Type': 'text/plain' }));
+  });
+
+  it('should basic process', async () => {
+    const content = `
       <template name="main-layout">
-        <script>layout script</script>
-        <view>layout view</view>
+        <script>exports.handler = () => 'layout-handler'; </script>
+        <view>layout-view,<%= result %>,<%- context.child.view %></view>
       </template>
 
       <route path="/home" layout="main-layout">
-        <script>home script</script>
-        <view>home view</view>
+        <script>exports.layout = 'main-layout';</script>
+        <view>home-view</view>
       </route>
     `;
 
-    const mockResponse = { html: '<wrapped>page</wrapped>' };
-    const navigateMock = navigateModule.navigate as jest.Mock;
-    navigateMock.mockResolvedValue(mockResponse);
+    expect(await execute(content, { path: '/home' })).toEqual(
+      new Response(200, `layout-view,layout-handler,home-view`, { 'Content-Type': 'text/plain' }),
+    );
+  });
 
-    const result = await execute(html, { path: '/home' });
+  it('should child not found', async () => {
+    const content = `
+    <template name="main-layout">
+      <script>exports.handler = () => context.child.script;</script>
+      <view>Layout: <%- context.child.view %></view>
+    </template>
 
-    expect(navigateMock).toHaveBeenCalledTimes(1);
-    const [routes, context, lookupTemplate] = navigateMock.mock.calls[0];
+    <route path="/home" layout="main-layout">
+      <script>exports.layout = 'main-layout'; exports.handler = () => ({ status: 404 })</script>
+      <view>Page Not Found</view>
+    </route>
+  `;
 
-    // Check routes
-    expect(routes).toEqual([
-      {
-        path: '/home',
-        layout: 'main-layout',
-        script: { content: 'home script' },
-        view: { content: 'home view' },
-      },
-    ]);
+    expect(await execute(content, { path: '/home' })).toEqual(
+      new Response(404, `Layout: Page Not Found`, { 'Content-Type': 'text/plain' }),
+    );
+  });
 
-    // Check template lookup works
-    const template = await lookupTemplate('main-layout');
-    expect(template).toEqual({
-      name: 'main-layout',
-      script: { content: 'layout script' },
-      view: { content: 'layout view' },
-    });
+  it('should partial form', async () => {
+    const content = `
+      <script>const title = 'main';</script>
+      <view><%= title %>-view</view>
+    `;
 
-    // Final result
-    expect(result).toEqual(mockResponse);
+    expect(await execute(content, { path: '/' })).toEqual(
+      new Response(200, `main-view`, { 'Content-Type': 'text/plain' }),
+    );
   });
 });

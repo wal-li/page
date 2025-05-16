@@ -1,7 +1,8 @@
-import { merge, pathToRegexp, Response } from '@wal-li/core';
+import { merge, pathToRegexp, Response, StatusCode } from '@wal-li/core';
 import { render } from './render';
-import { injectHotReload } from './utils';
-import layout from 'liquidjs/dist/tags/layout';
+import { injectHotReload, isBinaryFile, isCSS, isHtml, isJS } from './utils';
+import { fromBuffer } from 'file-type';
+import { getType } from 'mime';
 
 export type Block = {
   [key: string]: any;
@@ -18,6 +19,10 @@ export type Route = {
   view?: Block; // ROUTE, TEMPLATE
   context?: Record<string, any>; // ROUTE, TEMPLATE
 };
+
+const NOTFOUND_RESPONSE = new Response(StatusCode.NOT_FOUND, 'Not Found', {
+  'Content-Type': 'text/plain',
+});
 
 function matchRoute(routes: Route[], path: string): [Route, any] | undefined {
   for (const route of routes) {
@@ -54,6 +59,42 @@ function getRouteScore(path: string = '/'): number {
   return score;
 }
 
+async function makeResponse(
+  status: number = StatusCode.NOT_FOUND,
+  path: string = '/',
+  body: any,
+  headers: Record<string, string> = {},
+) {
+  if (status === StatusCode.NOT_FOUND && !body) return NOTFOUND_RESPONSE;
+  if (!body) return new Response(status, '', headers);
+
+  const res = new Response(status || StatusCode.OK, body, headers);
+
+  if (!res.headers['content-type']) {
+    // check filename
+    let fileType: any = getType(path);
+
+    // check file content
+    if (!fileType && (!(body instanceof Buffer) || (body instanceof Buffer && !isBinaryFile(body)))) {
+      body = body.toString();
+      res.body = body;
+
+      if (isHtml(path, body)) fileType = 'text/html';
+      else if (isJS(path, body)) fileType = 'application/javascript';
+      else if (isCSS(path, body)) fileType = 'text/css';
+      else fileType = 'text/plain';
+    }
+
+    // lookup from binary
+    if (!fileType && (body instanceof Uint8Array || body instanceof Buffer || body instanceof ArrayBuffer))
+      fileType = (await fromBuffer(body))?.mime;
+
+    if (fileType) res.headers['content-type'] = fileType;
+  }
+
+  return res;
+}
+
 export async function navigate(routes: Route[], context: Record<string, any>, lookupTemplate?: Function) {
   const isDev = process.env.NODE_ENV === 'development';
   const path = context.path || '/';
@@ -64,11 +105,11 @@ export async function navigate(routes: Route[], context: Record<string, any>, lo
     .sort((a, b) => getRouteScore(b.path) - getRouteScore(a.path));
 
   const routeRes = matchRoute(sortedRoutes, path);
-  if (!routeRes) return;
+  if (!routeRes) return NOTFOUND_RESPONSE;
 
   const [mainRoute, mainParams] = routeRes;
 
-  if (!mainRoute) return;
+  if (!mainRoute) return NOTFOUND_RESPONSE;
 
   context.params = merge({}, context.params || {}, mainParams || {});
   context = merge({}, mainRoute.context || {}, context);
@@ -78,7 +119,7 @@ export async function navigate(routes: Route[], context: Record<string, any>, lo
   let viewBlock = mainRoute.view;
   if (mainRoute.template && lookupTemplate) {
     const templateRes: Route = await lookupTemplate(mainRoute.template);
-    if (!templateRes) return;
+    if (!templateRes) return NOTFOUND_RESPONSE;
 
     scriptBlock = templateRes.script;
     viewBlock = templateRes.view;
@@ -86,7 +127,16 @@ export async function navigate(routes: Route[], context: Record<string, any>, lo
 
   // raw response in <route path="..."><view format="base64"></view></route>
   if (viewBlock?.format && ['base64', 'hex'].includes(viewBlock?.format)) {
-    return Buffer.from(viewBlock?.content || '', viewBlock.format);
+    let scriptRes: any;
+
+    if (scriptBlock) scriptRes = (await render(scriptBlock?.content, '', context)).script;
+
+    return await makeResponse(
+      scriptRes?.status || 200,
+      path,
+      Buffer.from(viewBlock?.content || '', viewBlock.format),
+      scriptRes?.headers || {},
+    );
   }
 
   // render page
@@ -97,22 +147,24 @@ export async function navigate(routes: Route[], context: Record<string, any>, lo
   // layout
   if (layoutName && lookupTemplate) {
     const layoutRoute: Route | undefined = await lookupTemplate(layoutName);
-    if (!layoutRoute) return;
+    if (!layoutRoute) return NOTFOUND_RESPONSE;
 
     context = merge({}, layoutRoute.context || {}, context, { child: renderRes });
     renderRes = await render(layoutRoute.script?.content, layoutRoute.view?.content, context);
   }
 
-  if (!renderRes.script && !renderRes.view) return;
+  if (!renderRes.script && !renderRes.view) return NOTFOUND_RESPONSE;
 
-  // have view
-  if (renderRes.view)
-    return new Response(
-      renderRes.script?.status || 200,
-      isDev ? injectHotReload(context.path, renderRes.view) : renderRes.view,
-      renderRes.script?.headers || {},
-    );
+  const content = renderRes.view
+    ? isDev
+      ? injectHotReload(context.path, renderRes.view)
+      : renderRes.view
+    : renderRes.script?.body;
 
-  // have script only
-  return renderRes;
+  return await makeResponse(
+    renderRes.script?.status || (content ? StatusCode.OK : StatusCode.NOT_FOUND),
+    path,
+    content,
+    renderRes.script?.headers || {},
+  );
 }

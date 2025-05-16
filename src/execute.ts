@@ -8,6 +8,8 @@ export async function execute(content: string = '', context: Record<string, any>
   const templateMap: Map<string, Route> = new Map();
 
   // Extract script and view sources
+  let mainRoute: Route | undefined;
+
   for (const node of root.childNodes as any) {
     let item: Route = {};
 
@@ -38,6 +40,16 @@ export async function execute(content: string = '', context: Record<string, any>
 
         templateMap.set(item.name, item);
         break;
+
+      case 'VIEW':
+        mainRoute ??= { path: '/' };
+        mainRoute.view = { content: node.innerHTML.trim(), format: node.getAttribute('format') };
+        break;
+
+      case 'SCRIPT':
+        mainRoute ??= { path: '/' };
+        mainRoute.script = { content: node.innerHTML.trim() };
+        break;
     }
 
     if (['ROUTE', 'TEMPLATE'].includes(node.tagName)) {
@@ -56,6 +68,8 @@ export async function execute(content: string = '', context: Record<string, any>
       }
     }
   }
+
+  if (mainRoute) routes.push(mainRoute);
 
   return await navigate(routes, context, (name: string) => {
     return templateMap.get(name);

@@ -19,12 +19,12 @@ describe('navigate', () => {
     jest.clearAllMocks();
   });
 
-  it('should return undefined if no route matches', async () => {
+  it('should return not found if no route matches', async () => {
     const routes = [{ path: '/test' }];
     const context = { path: '/no-match' };
 
     const result = await navigate(routes, context);
-    expect(result).toBeUndefined();
+    expect(result).toEqual(new Response(404, 'Not Found', { 'Content-Type': 'text/plain' }));
   });
 
   it('should match a basic route and render view + script', async () => {
@@ -44,6 +44,7 @@ describe('navigate', () => {
 
     const result = await navigate(routes, context);
     expect(result).toBeInstanceOf(Response);
+    expect(result).toEqual(new Response(200, '<html>Rendered</html>', { 'Content-Type': 'text/html' }));
   });
 
   it('should return a raw buffer if view is base64 encoded', async () => {
@@ -51,14 +52,19 @@ describe('navigate', () => {
     const routes = [
       {
         path: '/raw',
+        script: { content: 'console.log("script")' },
         view: { content: encoded, format: 'base64' },
       },
     ];
     const context = { path: '/raw' };
 
+    mockRender.mockResolvedValue({
+      script: { headers: { 'Content-Type': 'text/plain' } },
+    });
+
     const result = await navigate(routes, context);
-    expect(result).toBeInstanceOf(Buffer);
-    expect(result?.toString()).toBe('Hello, world!');
+    expect(result.body).toBeInstanceOf(Buffer);
+    expect(result?.body.toString()).toBe('Hello, world!');
   });
 
   it('should match a route alias and resolve to actual target route', async () => {
@@ -80,9 +86,10 @@ describe('navigate', () => {
     const result = await navigate(routes, context);
 
     expect(result).toBeInstanceOf(Response);
+    expect(result).toEqual(new Response(200, '<html>Real</html>', { 'Content-Type': 'text/html' }));
   });
 
-  it('should return undefined if render returns nothing', async () => {
+  it('should return not found if render returns nothing', async () => {
     const routes = [
       {
         path: '/empty',
@@ -95,7 +102,7 @@ describe('navigate', () => {
     mockRender.mockResolvedValue({}); // simulate empty render
     const result = await navigate(routes, context);
 
-    expect(result).toBeUndefined();
+    expect(result).toEqual(new Response(404, 'Not Found', { 'Content-Type': 'text/plain' }));
   });
 
   it('should return script-only render result when view is missing', async () => {
@@ -107,11 +114,15 @@ describe('navigate', () => {
     ];
     const context = { path: '/script-only' };
 
-    const expectedOutput = { script: { status: 200, headers: {} } };
+    const expectedOutput = { script: { status: 200, body: { foo: 'bar' }, headers: {} } };
     mockRender.mockResolvedValue(expectedOutput);
 
     const result = await navigate(routes, context);
-    expect(result).toEqual(expectedOutput);
+    expect(result).toEqual(
+      new Response(expectedOutput.script.status, JSON.stringify(expectedOutput.script.body), {
+        'Content-Type': 'application/json',
+      }),
+    );
   });
 
   it('should extract dynamic param from route like /[name]', async () => {

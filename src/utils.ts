@@ -16,13 +16,38 @@ export function deepScan(dir: string, root = '.'): string[] {
     .flat();
 }
 
-function isHtml(path: string, content: string) {
+export function isHtml(path: string, content: string) {
   return (
-    path.endsWith('.html') ||
-    path.endsWith('.htm') ||
-    content?.includes('<html>') ||
-    content?.includes('<head>') ||
-    content?.includes('<body>')
+    path.toLowerCase().endsWith('.html') ||
+    path.toLowerCase().endsWith('.htm') ||
+    content?.match(/\<html\>/i) ||
+    content?.match(/\<head\>/i) ||
+    content?.match(/\<body\>/i)
+  );
+}
+
+export function isCSS(path: string, content: string) {
+  return (
+    path.toLowerCase().endsWith('.css') ||
+    (content?.match(/\{/i) &&
+      content?.match(/\}/i) &&
+      (content?.match(/color\:/i) ||
+        content?.match(/font\-size\:/i) ||
+        content?.match(/margin\:/i) ||
+        content?.match(/padding\:/i)))
+  );
+}
+
+export function isJS(path: string, content: string) {
+  return (
+    path.toLowerCase().endsWith('.js') ||
+    content?.match(/function/i) ||
+    content?.match(/const/i) ||
+    content?.match(/let/i) ||
+    content?.match(/var/i) ||
+    content?.match(/\=\>/i) ||
+    content?.match(/import/i) ||
+    content?.match(/export/i)
   );
 }
 
