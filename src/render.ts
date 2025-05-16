@@ -48,20 +48,22 @@ const BUILTIN_ASYNC_FUNCTIONS = {
 
     const headers = Object.fromEntries(res.headers.entries());
 
-    return options.responseType === 'json'
-      ? await res.json()
-      : options.responseType === 'text'
-      ? await res.text()
-      : {
-          status: res.status,
-          statusText: res.statusText,
-          headers,
-          bodyUsed: false,
-          ok: res.ok,
-          redirected: res.redirected,
-          type: res.type,
-          url: res.url,
-        };
+    return {
+      status: res.status,
+      statusText: res.statusText,
+      headers,
+      bodyUsed: false,
+      body:
+        options.responseType === 'json'
+          ? await res.json()
+          : options.responseType === 'text'
+          ? await res.text()
+          : undefined,
+      ok: res.ok,
+      redirected: res.redirected,
+      type: res.type,
+      url: res.url,
+    };
   },
 };
 
