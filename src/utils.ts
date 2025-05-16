@@ -1,4 +1,3 @@
-import { merge } from '@wal-li/core';
 import { Dirent, readdirSync } from 'fs';
 import { join } from 'path';
 
@@ -122,11 +121,11 @@ export async function request(url: string, options: RequestOptions = {}) {
 
   const res = await fetch(u, {
     method: options.method || 'get',
-    headers: merge(
-      {},
-      options.responseType === 'json' ? { Accept: 'application/json' } : {},
-      contentType ? { 'Content-Type': contentType } : {},
-    ),
+    headers: {
+      ...(options.responseType === 'json' ? { Accept: 'application/json' } : {}),
+      ...(contentType ? { 'Content-Type': contentType } : {}),
+      ...(options.headers || {}),
+    },
     ...(reqBody ? { body: reqBody } : {}),
   });
 
